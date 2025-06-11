@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>《西游记》人物关系交互仪表盘</title>
+    <!-- 引入Vis.js库 -->
+    <script type="text/javascript" src="https://visjs.github.io/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style type="text/css">
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #2d3436;
+        }
+        #mynetwork {
+            width: 100%;
+            height: 100%;
+        }
+        .sidebar {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            width: 280px;
+            max-height: calc(100% - 40px);
+            overflow-y: auto;
+            color: #ecf0f1;
+            background-color: rgba(45, 52, 54, 0.85);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            z-index: 10;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .sidebar h2 {
+            margin-top: 0;
+            font-size: 1.2em;
+            border-bottom: 1px solid #7f8c8d;
+            padding-bottom: 10px;
+        }
+        .control-group {
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #7f8c8d;
+            background-color: #3b4446;
+            color: white;
+            box-sizing: border-box;
+        }
+        .search-container {
+            display: flex;
+        }
+        .search-container input {
+            flex-grow: 1;
+        }
+        .search-container button {
+            margin-left: 5px;
+            flex-shrink: 0;
+        }
+        button {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: none;
+            background-color: #3498db;
+            color: white;
+            cursor: pointer;
+            width: 100%; /* 让按钮宽度统一 */
+            box-sizing: border-box;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #selection-info p {
+            margin: 8px 0;
+            font-size: 0.9em;
+        }
+        #selection-info strong {
+            color: #3498db;
+            min-width: 100px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <!-- 左侧的控制和信息边栏 -->
+    <div class="sidebar">
+        <h2>交互控制台</h2>
+        
+        <div class="control-group">
+            <label for="search-input">搜索角色:</label>
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="例如：孙悟空">
+                <!-- 调整按钮宽度 -->
+                <button id="search-button" style="width: auto;">定位</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label for="community-filter">筛选社群:</label>
+            <select id="community-filter">
+                <option value="all">显示所有社群</option>
+            </select>
+        </div>
+
+        <!-- 【新增功能】查看报告按钮 -->
+        <div class="control-group">
+            <label>查看分析报告:</label>
+            <!-- 使用<a>标签使其在新窗口打开，样式上模拟一个按钮 -->
+            <a href="report.pdf" target="_blank" style="text-decoration: none;">
+                <button>打开PDF报告</button>
+            </a>
+        </div>
+
+        <div class="control-group">
+            <label>选中角色信息:</label>
+            <div id="selection-info">
+                <p>请在网络图中点击一个节点以查看详细信息。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 网络图容器 -->
+    <div id="mynetwork"></div>
+
+    <script type="text/javascript">
+        const container = document.getElementById('mynetwork');
+        let nodes = new vis.DataSet([]);
+        let edges = new vis.DataSet([]);
+        let network = null;
+        let allNodesOriginal;
+        let currentlySelectedId = null;
+        let currentFilterGroupId = 'all';
+
+        // 完整的网络配置选项
+        const options = {
+            physics: { enabled: false },
+            nodes: {
+                shape: 'dot',
+                scaling: { min: 5, max: 50, label: { enabled: false } },
+                font: { size: 16, color: '#ffffff', strokeWidth: 0.5, strokeColor: '#000000' },
+                color: { border: 'rgba(255,255,255,0.3)', background: '#97C2FC', highlight: { border: '#ffffff', background: '#e74c3c' } }
+            },
+            edges: {
+                scaling: { min: 0.5, max: 10, label: { enabled: false } },
+                color: { color: 'rgba(127, 140, 141, 0.3)', highlight: '#e74c3c' },
+                smooth: { type: 'continuous', forceDirection: 'none' }
+            },
+            interaction: {
+                hover: true, tooltipDelay: 200, dragNodes: false, dragView: true, zoomView: true
+            }
+        };
+
+        // 搜索并聚焦节点的函数
+        function searchAndFocus() {
+            const nodeId = document.getElementById('search-input').value;
+            const nodeExists = nodes.get(nodeId);
+            if (nodeExists) {
+                if (currentFilterGroupId !== 'all') {
+                    document.getElementById('community-filter').value = 'all';
+                    handleFilterChange('all');
+                }
+                handleNodeClick(nodeId);
+                network.focus(nodeId, { scale: 1.5, animation: true });
+            } else {
+                alert('网络中未找到该角色！');
+            }
+        }
+
+        // 更新边栏信息的函数
+        function updateSidebar(nodeId) {
+            const infoDiv = document.getElementById('selection-info');
+            const nodeData = allNodesOriginal.find(n => n.id === nodeId);
+            if (nodeData) {
+                infoDiv.innerHTML = `
+                    <p><strong>角色名:</strong> ${nodeData.id}</p>
+                    <p><strong>所在社群ID:</strong> ${nodeData.group ?? 'N/A'}</p>
+                    <p><strong>连接伙伴数:</strong> ${nodeData.value_degree ?? 0}</p>
+                    <p><strong>桥梁指数:</strong> ${(nodeData.value_betweenness ?? 0).toFixed(4)}</p>
+                    <p><strong>信息中心:</strong> ${(nodeData.value_closeness ?? 0).toFixed(4)}</p>
+                    <p><strong>影响力指数:</strong> ${(nodeData.value_eigenvector ?? 0).toFixed(4)}</p>
+                `;
+            } else {
+                infoDiv.innerHTML = '<p>请选择一个节点以查看详细信息。</p>';
+            }
+        }
+
+        // 根据社群ID更新视图的显示状态
+        function applyCommunityFilter(groupId) {
+            network.setOptions({ interaction: { dragView: true } });
+            const selectedGroupId = (groupId === 'all') ? null : parseInt(groupId, 10);
+            
+            const updatedNodes = allNodesOriginal.map(node => ({
+                id: node.id,
+                hidden: selectedGroupId !== null && node.group !== selectedGroupId,
+                label: '',
+                opacity: 1
+            }));
+            
+            nodes.update(updatedNodes);
+            updateSidebar(null);
+
+            if (selectedGroupId !== null) {
+                const communityNodeIds = allNodesOriginal
+                    .filter(n => n.group === selectedGroupId)
+                    .map(n => n.id);
+                if (communityNodeIds.length > 0) {
+                    network.fit({ nodes: communityNodeIds, animation: true });
+                }
+            } else {
+                network.fit({ animation: true });
+            }
+        }
+        
+        // 统一的点击处理逻辑
+        function handleNodeClick(nodeId) {
+            // 如果点击了已选中的节点，或点击了空白处
+            if (currentlySelectedId === nodeId || nodeId === null) {
+                currentlySelectedId = null;
+                // 返回当前的社群视图
+                applyCommunityFilter(currentFilterGroupId);
+            } else { 
+                currentlySelectedId = nodeId;
+
+                network.setOptions({ interaction: { dragView: false } });
+                
+                const connectedNodes = network.getConnectedNodes(nodeId);
+                connectedNodes.push(nodeId);
+                
+                const updatedNodes = allNodesOriginal.map(node => {
+                    const isVisible = (currentFilterGroupId === 'all' || node.group === parseInt(currentFilterGroupId));
+                    if (!isVisible) return { id: node.id, hidden: true };
+                    
+                    const isConnected = connectedNodes.includes(node.id);
+                    return {
+                        id: node.id,
+                        label: isConnected ? node.id : '',
+                        opacity: isConnected ? 1 : 0.1,
+                        hidden: false
+                    };
+                });
+                
+                nodes.update(updatedNodes);
+                updateSidebar(nodeId);
+            }
+        }
+        
+        // 处理下拉菜单变化的函数
+        function handleFilterChange(groupId) {
+            currentFilterGroupId = groupId;
+            currentlySelectedId = null;
+            applyCommunityFilter(groupId);
+        }
+
+        async function drawNetwork() {
+            try {
+                const response = await fetch('network_data_full.json');
+                const graphData = await response.json();
+                
+                allNodesOriginal = graphData.nodes.map(node => ({...node, label: ''}));
+
+                nodes.add(allNodesOriginal);
+                edges.add(graphData.edges);
+
+                network = new vis.Network(container, { nodes, edges }, options);
+
+                const communityFilter = document.getElementById('community-filter');
+                const uniqueGroups = [...new Set(allNodesOriginal.map(n => n.group).filter(g => g !== undefined))].sort((a,b) => a - b);
+                uniqueGroups.forEach(groupId => {
+                    const option = document.createElement('option');
+                    option.value = groupId;
+                    option.textContent = `只显示社群 ${groupId}`;
+                    communityFilter.appendChild(option);
+                });
+
+                network.on("click", function(params) {
+                    const clickedNodeId = params.nodes.length > 0 ? params.nodes[0] : null;
+                    handleNodeClick(clickedNodeId);
+                });
+                
+                document.getElementById('search-button').addEventListener('click', searchAndFocus);
+                document.getElementById('search-input').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') searchAndFocus();
+                });
+                communityFilter.addEventListener('change', (e) => handleFilterChange(e.target.value));
+
+            } catch (error) {
+                console.error('加载或绘制网络时出错:', error);
+                container.innerHTML = `<div style="color:white;padding:20px;">错误：加载网络数据失败。</div>`;
+            }
+        }
+
+        drawNetwork();
+    </script>
+</body>
+</html>
