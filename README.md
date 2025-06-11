@@ -37,6 +37,8 @@
 
 直接访问 https://superb-cupcake-b50723.netlify.app/ 。
 
+如果你想在本地运行，请按照下面的指示操作：
+
 环境准备： 安装Python3后，运行
 
 ```pip install pandas pyreadr numpy networkx```
