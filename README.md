@@ -34,6 +34,9 @@
 信息展示： 动态侧边栏会实时显示用户选中角色的各项中心性指标和社群信息。
 
 如何运行
+
+直接访问 https://superb-cupcake-b50723.netlify.app/ 。
+
 环境准备： 安装Python3后，运行
 
 ```pip install pandas pyreadr numpy networkx```
@@ -42,4 +45,4 @@
 
 启动服务： 在包含 index.html 和 .json 文件的目录下，运行 python -m http.server。
 
-访问： 在浏览器中打开 http://localhost:8000。
+访问： 在浏览器中打开 http://localhost:8000 。
