@@ -1,5 +1,6 @@
 
 《西游记》人物关系网络交互式分析平台
+
 项目简介
 本项目利用“远读”（Distant Reading）的理念，对《西游记》中的人物关系进行了一次数据驱动的量化解读。我们通过分析人物在小说场景中的共同出现（共现）关系，构建了一个可交互的网络模型，并最终以Web仪表盘的形式呈现。
 
@@ -33,7 +34,9 @@
 信息展示： 动态侧边栏会实时显示用户选中角色的各项中心性指标和社群信息。
 
 如何运行
-环境准备： 安装Python及pandas, pyreadr, numpy, networkx库。
+环境准备： 安装Python3后，运行
+
+```pip install pandas pyreadr numpy networkx```
 
 生成数据： 运行 python export_for_web.py 脚本，生成 network_data_full.json 文件。
 
